@@ -2,8 +2,8 @@ use std::time::{Duration, Instant};
 
 use tao::event::{Event, StartCause};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
-use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::TrayIconBuilder;
+use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 
 use crate::metrics;
 use crate::providers::SessionProvider;
@@ -109,21 +109,26 @@ impl MenuItems {
         self.name_item.set_text(name);
 
         let provider = session.provider.short_label();
-        self.provider_item.set_text(format!("Provider        {provider}"));
+        self.provider_item
+            .set_text(format!("Provider        {provider}"));
 
         let cwd = crate::session::shorten_path(&session.cwd);
-        self.directory_item.set_text(format!("Directory       {cwd}"));
+        self.directory_item
+            .set_text(format!("Directory       {cwd}"));
 
         // Model — smart fallback based on provider
         let model_label = model_display(session);
-        self.model_item.set_text(format!("Model           {model_label}"));
+        self.model_item
+            .set_text(format!("Model           {model_label}"));
 
-        self.duration_item.set_text(format!("Duration        {duration}"));
+        self.duration_item
+            .set_text(format!("Duration        {duration}"));
 
         let turns = session.turn_count;
         let messages = session.user_message_count;
-        self.turns_item
-            .set_text(format!("Turns           {turns} turns, {messages} messages"));
+        self.turns_item.set_text(format!(
+            "Turns           {turns} turns, {messages} messages"
+        ));
 
         // Tokens
         let cache_rate = metrics::cache_hit_rate(&session.tokens);
@@ -131,8 +136,7 @@ impl MenuItems {
             .set_text(format!("Tokens          ↓ {in_tok} in   ↑ {out_tok} out"));
         self.cache_item
             .set_text(format!("Cache           {cache_rate:.0}% hit rate"));
-        self.cost_item
-            .set_text(format!("Estimated       {cost}"));
+        self.cost_item.set_text(format!("Estimated       {cost}"));
 
         // Activity
         let tools = session.total_tool_calls();

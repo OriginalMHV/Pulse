@@ -108,9 +108,13 @@ pub fn run() -> anyhow::Result<()> {
             poll_interval: 2,
         },
         providers: ProviderConfig {
-            copilot: providers.iter().any(|p| p.name == "GitHub Copilot CLI" && p.found),
+            copilot: providers
+                .iter()
+                .any(|p| p.name == "GitHub Copilot CLI" && p.found),
             claude: providers.iter().any(|p| p.name == "Claude Code" && p.found),
-            codex: providers.iter().any(|p| p.name == "OpenAI Codex CLI" && p.found),
+            codex: providers
+                .iter()
+                .any(|p| p.name == "OpenAI Codex CLI" && p.found),
         },
     };
 
@@ -142,10 +146,7 @@ pub fn run() -> anyhow::Result<()> {
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn()?;
-            println!(
-                "  \x1b[32m✓\x1b[0m Menu bar started (pid {})",
-                child.id()
-            );
+            println!("  \x1b[32m✓\x1b[0m Menu bar started (pid {})", child.id());
         }
     }
 

@@ -10,7 +10,10 @@ use crate::event::PulseEvent;
 use crate::metrics;
 use crate::session::Session;
 
-use super::{ALERT_RED, AMBER, CLAUDE_AMBER, CODEX_TEAL, COPILOT_PURPLE, CYAN, DIM_GRAY, PANEL_BORDER, PULSE_GREEN};
+use super::{
+    ALERT_RED, AMBER, CLAUDE_AMBER, CODEX_TEAL, COPILOT_PURPLE, CYAN, DIM_GRAY, PANEL_BORDER,
+    PULSE_GREEN,
+};
 
 /// Compact single-session view. Designed for tmux side panes and focused monitoring.
 pub fn draw(frame: &mut Frame, app: &App) {
@@ -28,8 +31,8 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // header
-            Constraint::Length(3),  // metrics bar
+            Constraint::Length(3), // header
+            Constraint::Length(3), // metrics bar
             Constraint::Min(6),    // event feed
             Constraint::Length(3), // tool summary
         ])
@@ -44,14 +47,20 @@ pub fn draw(frame: &mut Frame, app: &App) {
 fn render_no_session(frame: &mut Frame) {
     let block = Block::bordered()
         .title(Line::from(vec![
-            Span::styled(" Pulse ", Style::default().fg(PULSE_GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " Pulse ",
+                Style::default()
+                    .fg(PULSE_GREEN)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Focus ", Style::default().fg(AMBER)),
         ]))
         .border_style(Style::default().fg(PANEL_BORDER));
 
-    let msg = Paragraph::new(Line::from(vec![
-        Span::styled(" Waiting for active session...", Style::default().fg(DIM_GRAY)),
-    ]))
+    let msg = Paragraph::new(Line::from(vec![Span::styled(
+        " Waiting for active session...",
+        Style::default().fg(DIM_GRAY),
+    )]))
     .block(block);
 
     frame.render_widget(msg, frame.area());
@@ -88,7 +97,9 @@ fn render_focus_header(frame: &mut Frame, session: &Session, area: Rect, is_narr
         active_indicator,
         Span::styled(
             session.provider.short_label(),
-            Style::default().fg(provider_color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(provider_color)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(" | ", Style::default().fg(DIM_GRAY)),
         Span::styled(cwd_display, Style::default().fg(Color::White)),
@@ -100,7 +111,12 @@ fn render_focus_header(frame: &mut Frame, session: &Session, area: Rect, is_narr
 
     let block = Block::bordered()
         .title(Line::from(vec![
-            Span::styled(" Pulse ", Style::default().fg(PULSE_GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " Pulse ",
+                Style::default()
+                    .fg(PULSE_GREEN)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Focus ", Style::default().fg(AMBER)),
         ]))
         .border_style(Style::default().fg(PANEL_BORDER));
@@ -123,7 +139,10 @@ fn render_metrics_bar(frame: &mut Frame, session: &Session, area: Rect) {
         Span::styled(" ", Style::default()),
         Span::styled(format!("↑{out_tok}"), Style::default().fg(PULSE_GREEN)),
         Span::styled("  Cache: ", Style::default().fg(DIM_GRAY)),
-        Span::styled(format!("{cache_rate:.0}%"), Style::default().fg(Color::White)),
+        Span::styled(
+            format!("{cache_rate:.0}%"),
+            Style::default().fg(Color::White),
+        ),
         Span::styled("  Tools: ", Style::default().fg(DIM_GRAY)),
         Span::styled(format!("{tools}"), Style::default().fg(Color::White)),
         Span::styled("  Files: ", Style::default().fg(DIM_GRAY)),
@@ -132,8 +151,7 @@ fn render_metrics_bar(frame: &mut Frame, session: &Session, area: Rect) {
         Span::styled(cost, Style::default().fg(AMBER)),
     ]);
 
-    let block = Block::bordered()
-        .border_style(Style::default().fg(PANEL_BORDER));
+    let block = Block::bordered().border_style(Style::default().fg(PANEL_BORDER));
 
     let bar = Paragraph::new(info).block(block);
     frame.render_widget(bar, area);
@@ -233,7 +251,11 @@ fn event_color(event: &PulseEvent) -> Color {
         PulseEvent::AssistantMessage { .. } => CYAN,
         PulseEvent::ToolStart { .. } => AMBER,
         PulseEvent::ToolComplete { success, .. } => {
-            if *success { AMBER } else { ALERT_RED }
+            if *success {
+                AMBER
+            } else {
+                ALERT_RED
+            }
         }
         PulseEvent::Warning { .. } => ALERT_RED,
         PulseEvent::TurnStart { .. } | PulseEvent::TurnEnd { .. } => DIM_GRAY,

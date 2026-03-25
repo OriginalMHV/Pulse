@@ -1,5 +1,7 @@
 use std::io;
-use std::process::{Command as ProcessCommand, Stdio};
+use std::process::Command as ProcessCommand;
+#[cfg(target_os = "macos")]
+use std::process::Stdio;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -21,6 +23,7 @@ use pulse::scanner::Scanner;
 use pulse::ui;
 use pulse::watcher::Watcher;
 
+#[cfg(target_os = "macos")]
 const LAUNCH_AGENT_LABEL: &str = "dev.pulse.menubar";
 
 #[derive(Parser)]
@@ -86,12 +89,19 @@ fn main() -> anyhow::Result<()> {
         return attach_tmux_pane(filter);
     }
 
+    #[cfg(target_os = "macos")]
     if cli.install {
         return install_launch_agent();
     }
 
+    #[cfg(target_os = "macos")]
     if cli.uninstall {
         return uninstall_launch_agent();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    if cli.install || cli.uninstall {
+        anyhow::bail!("--install and --uninstall are only supported on macOS");
     }
 
     #[cfg(target_os = "macos")]
@@ -231,6 +241,7 @@ fn attach_tmux_pane(session_filter: Option<&str>) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn launch_menubar_background() -> anyhow::Result<()> {
     kill_existing_daemons();
 
@@ -252,6 +263,7 @@ fn launch_menubar_background() -> anyhow::Result<()> {
 }
 
 /// Kill any running pulse menubar daemons so we don't end up with duplicates.
+#[cfg(target_os = "macos")]
 fn kill_existing_daemons() {
     // Find PIDs of existing menubar-daemon processes (excluding our own PID)
     let own_pid = std::process::id();
@@ -270,6 +282,7 @@ fn kill_existing_daemons() {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn install_launch_agent() -> anyhow::Result<()> {
     let exe = std::env::current_exe()?;
     let exe_path = exe.display().to_string();
@@ -335,6 +348,7 @@ fn install_launch_agent() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn uninstall_launch_agent() -> anyhow::Result<()> {
     let plist_path = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
@@ -356,9 +370,7 @@ fn uninstall_launch_agent() -> anyhow::Result<()> {
     }
 
     // Also kill any running daemon
-    let _ = ProcessCommand::new("pkill")
-        .args(["-f", "pulse --menubar-daemon"])
-        .status();
+    kill_existing_daemons();
 
     Ok(())
 }
