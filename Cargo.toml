@@ -1,0 +1,45 @@
+[package]
+name = "pulse-cli"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Michael Herland Valen"]
+description = "htop for AI coding sessions. Real-time monitoring for Copilot CLI, Claude Code, and Codex CLI."
+license = "MIT"
+repository = "https://github.com/OriginalMHV/Pulse"
+homepage = "https://github.com/OriginalMHV/Pulse"
+readme = "README.md"
+keywords = ["htop", "ai", "tui", "monitoring", "terminal"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "pulse"
+path = "src/main.rs"
+
+[lib]
+name = "pulse"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.30"
+crossterm = "0.29"
+notify = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
