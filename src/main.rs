@@ -1,5 +1,5 @@
 use std::io;
-use std::process::Command as ProcessCommand;
+use std::process::{Command as ProcessCommand, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -21,6 +21,8 @@ use pulse::scanner::Scanner;
 use pulse::ui;
 use pulse::watcher::Watcher;
 
+const LAUNCH_AGENT_LABEL: &str = "dev.pulse.menubar";
+
 #[derive(Parser)]
 #[command(
     name = "pulse",
@@ -39,9 +41,25 @@ struct Cli {
     #[arg(long)]
     focus: bool,
 
-    /// Run as a macOS menu bar widget
+    /// Launch the menu bar widget (detaches to background)
     #[arg(long)]
     menubar: bool,
+
+    /// Internal: run menu bar event loop in foreground (used by --menubar and launchd)
+    #[arg(long, hide = true)]
+    menubar_daemon: bool,
+
+    /// Install as a macOS LaunchAgent (auto-starts menu bar on login)
+    #[arg(long)]
+    install: bool,
+
+    /// Remove the LaunchAgent and stop the menu bar daemon
+    #[arg(long)]
+    uninstall: bool,
+
+    /// Interactive setup wizard
+    #[arg(long)]
+    init: bool,
 
     /// Filter by provider name (copilot, claude, codex)
     #[arg(long)]
@@ -55,6 +73,10 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
+    if cli.init {
+        return pulse::init::run();
+    }
+
     if let Some(ref session_filter) = cli.attach {
         let filter = if session_filter.is_empty() {
             None
@@ -64,15 +86,31 @@ fn main() -> anyhow::Result<()> {
         return attach_tmux_pane(filter);
     }
 
+    if cli.install {
+        return install_launch_agent();
+    }
+
+    if cli.uninstall {
+        return uninstall_launch_agent();
+    }
+
     #[cfg(target_os = "macos")]
-    if cli.menubar {
+    if cli.menubar_daemon {
         return pulse::menubar::run();
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     if cli.menubar {
+        return launch_menubar_background();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    if cli.menubar || cli.menubar_daemon {
         anyhow::bail!("--menubar is only supported on macOS");
     }
+
+    // Check if an explicit mode flag was given
+    let has_explicit_mode = cli.list || cli.stats || cli.focus;
 
     let providers: Vec<Box<dyn SessionProvider>> = vec![
         Box::new(CopilotProvider),
@@ -100,14 +138,28 @@ fn main() -> anyhow::Result<()> {
     if scanner.sessions().is_empty() {
         println!("No AI coding sessions found.");
         println!("Supported: Copilot CLI, Claude Code, Codex CLI");
+        println!();
+        println!("Run `pulse --init` to set up Pulse.");
         return Ok(());
     }
 
     if cli.focus {
-        run_focus_tui(scanner)
-    } else {
-        run_tui(scanner)
+        return run_focus_tui(scanner);
     }
+
+    // No explicit flag — use config default
+    if !has_explicit_mode {
+        if let Some(config) = pulse::config::load() {
+            match config.mode.default.as_str() {
+                "focus" => return run_focus_tui(scanner),
+                #[cfg(target_os = "macos")]
+                "menubar" => return launch_menubar_background(),
+                _ => {} // fall through to dashboard
+            }
+        }
+    }
+
+    run_tui(scanner)
 }
 
 fn print_list(scanner: &Scanner) {
@@ -175,6 +227,118 @@ fn attach_tmux_pane(session_filter: Option<&str>) -> anyhow::Result<()> {
     if !status.success() {
         anyhow::bail!("Failed to create tmux pane");
     }
+
+    Ok(())
+}
+
+fn launch_menubar_background() -> anyhow::Result<()> {
+    let exe = std::env::current_exe()?;
+
+    let child = ProcessCommand::new(&exe)
+        .arg("--menubar-daemon")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+
+    println!("Pulse menu bar started (pid {})", child.id());
+    println!("It will appear in your macOS menu bar.");
+    println!();
+    println!("To auto-start on login:  pulse --install");
+    println!("To stop:                 pulse --uninstall");
+
+    Ok(())
+}
+
+fn install_launch_agent() -> anyhow::Result<()> {
+    let exe = std::env::current_exe()?;
+    let exe_path = exe.display().to_string();
+
+    let plist_dir = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
+        .join("Library/LaunchAgents");
+
+    std::fs::create_dir_all(&plist_dir)?;
+
+    let plist_path = plist_dir.join(format!("{LAUNCH_AGENT_LABEL}.plist"));
+
+    let plist_content = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{LAUNCH_AGENT_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{exe_path}</string>
+        <string>--menubar-daemon</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/tmp/pulse-menubar.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/pulse-menubar.log</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>"#
+    );
+
+    std::fs::write(&plist_path, plist_content)?;
+
+    // Load the agent
+    let status = ProcessCommand::new("launchctl")
+        .args(["load", "-w"])
+        .arg(&plist_path)
+        .status()?;
+
+    if status.success() {
+        println!("Pulse menu bar installed and started.");
+        println!("It will auto-start on login.");
+        println!();
+        println!("LaunchAgent: {}", plist_path.display());
+        println!("To remove:   pulse --uninstall");
+    } else {
+        anyhow::bail!(
+            "Failed to load LaunchAgent. The plist was written to {}",
+            plist_path.display()
+        );
+    }
+
+    Ok(())
+}
+
+fn uninstall_launch_agent() -> anyhow::Result<()> {
+    let plist_path = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
+        .join("Library/LaunchAgents")
+        .join(format!("{LAUNCH_AGENT_LABEL}.plist"));
+
+    if plist_path.exists() {
+        // Unload first (ignore errors — might not be loaded)
+        let _ = ProcessCommand::new("launchctl")
+            .args(["unload"])
+            .arg(&plist_path)
+            .status();
+
+        std::fs::remove_file(&plist_path)?;
+        println!("Pulse menu bar uninstalled.");
+        println!("Removed: {}", plist_path.display());
+    } else {
+        println!("No LaunchAgent found. Nothing to uninstall.");
+    }
+
+    // Also kill any running daemon
+    let _ = ProcessCommand::new("pkill")
+        .args(["-f", "pulse --menubar-daemon"])
+        .status();
 
     Ok(())
 }

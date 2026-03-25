@@ -65,17 +65,34 @@ cd Pulse && cargo install --path .
 
 Requires Rust >= 1.85 for building from source.
 
+## Getting started
+
+```bash
+pulse --init
+```
+
+The setup wizard detects your installed AI tools, lets you pick a default mode, and optionally installs the macOS menu bar widget with auto-start on login.
+
 ## Usage
 
 ```bash
+# interactive setup
+pulse --init
+
 # launch the full TUI dashboard
 pulse
 
 # focus mode: compact single-session view (great for side panes)
 pulse --focus
 
-# macOS menu bar widget (live stats in your menu bar)
+# macOS menu bar widget (detaches to background)
 pulse --menubar
+
+# install menu bar as a LaunchAgent (auto-starts on login)
+pulse --install
+
+# remove LaunchAgent and stop daemon
+pulse --uninstall
 
 # list sessions as plain text
 pulse --list

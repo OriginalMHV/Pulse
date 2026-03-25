@@ -1,4 +1,3 @@
-use std::process::Command;
 use std::time::{Duration, Instant};
 
 use tao::event::{Event, StartCause};
@@ -31,8 +30,6 @@ struct MenuItems {
     tools_item: MenuItem,
     files_item: MenuItem,
     // Actions
-    focus_item: MenuItem,
-    dashboard_item: MenuItem,
     quit_item: MenuItem,
 }
 
@@ -53,8 +50,6 @@ impl MenuItems {
         let tools_item = MenuItem::new("", false, None);
         let files_item = MenuItem::new("", false, None);
 
-        let focus_item = MenuItem::new("Open Focus TUI", true, None);
-        let dashboard_item = MenuItem::new("Open Dashboard", true, None);
         let quit_item = MenuItem::new("Quit Pulse", true, None);
 
         // Session header
@@ -80,10 +75,6 @@ impl MenuItems {
         menu.append(&files_item)?;
         menu.append(&PredefinedMenuItem::separator())?;
 
-        // Actions
-        menu.append(&focus_item)?;
-        menu.append(&dashboard_item)?;
-        menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&quit_item)?;
 
         Ok(Self {
@@ -98,8 +89,6 @@ impl MenuItems {
             cost_item,
             tools_item,
             files_item,
-            focus_item,
-            dashboard_item,
             quit_item,
         })
     }
@@ -207,8 +196,6 @@ pub fn run() -> anyhow::Result<()> {
     let menu = Menu::new();
     let items = MenuItems::build(&menu)?;
 
-    let focus_id = items.focus_item.id().clone();
-    let dashboard_id = items.dashboard_item.id().clone();
     let quit_id = items.quit_item.id().clone();
 
     let tray = TrayIconBuilder::new()
@@ -235,12 +222,6 @@ pub fn run() -> anyhow::Result<()> {
                 *control_flow = ControlFlow::Exit;
                 return;
             }
-            if event.id == focus_id {
-                open_terminal_with("--focus");
-            }
-            if event.id == dashboard_id {
-                open_terminal_with("");
-            }
         }
 
         if let Event::NewEvents(StartCause::ResumeTimeReached { .. } | StartCause::Init) = event {
@@ -259,26 +240,4 @@ pub fn run() -> anyhow::Result<()> {
             }
         }
     });
-}
-
-fn open_terminal_with(args: &str) {
-    let pulse_bin = std::env::current_exe()
-        .unwrap_or_else(|_| "pulse".into())
-        .display()
-        .to_string();
-
-    let cmd = if args.is_empty() {
-        pulse_bin
-    } else {
-        format!("{pulse_bin} {args}")
-    };
-
-    let script = format!(
-        r#"tell application "Terminal"
-    activate
-    do script "{cmd}"
-end tell"#
-    );
-
-    let _ = Command::new("osascript").args(["-e", &script]).spawn();
 }

@@ -1,5 +1,7 @@
 pub mod app;
+pub mod config;
 pub mod event;
+pub mod init;
 #[cfg(target_os = "macos")]
 pub mod menubar;
 pub mod metrics;
