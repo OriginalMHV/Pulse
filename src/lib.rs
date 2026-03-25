@@ -1,5 +1,7 @@
 pub mod app;
 pub mod event;
+#[cfg(target_os = "macos")]
+pub mod menubar;
 pub mod metrics;
 pub mod providers;
 pub mod scanner;

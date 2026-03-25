@@ -35,6 +35,14 @@ struct Cli {
     #[arg(long)]
     stats: bool,
 
+    /// Focus mode: compact single-session view for side panes
+    #[arg(long)]
+    focus: bool,
+
+    /// Run as a macOS menu bar widget
+    #[arg(long)]
+    menubar: bool,
+
     /// Filter by provider name (copilot, claude, codex)
     #[arg(long)]
     provider: Option<String>,
@@ -54,6 +62,16 @@ fn main() -> anyhow::Result<()> {
             Some(session_filter.as_str())
         };
         return attach_tmux_pane(filter);
+    }
+
+    #[cfg(target_os = "macos")]
+    if cli.menubar {
+        return pulse::menubar::run();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    if cli.menubar {
+        anyhow::bail!("--menubar is only supported on macOS");
     }
 
     let providers: Vec<Box<dyn SessionProvider>> = vec![
@@ -85,7 +103,11 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    run_tui(scanner)
+    if cli.focus {
+        run_focus_tui(scanner)
+    } else {
+        run_tui(scanner)
+    }
 }
 
 fn print_list(scanner: &Scanner) {
@@ -132,7 +154,7 @@ fn attach_tmux_pane(session_filter: Option<&str>) -> anyhow::Result<()> {
     if std::env::var("TMUX").is_err() {
         anyhow::bail!(
             "Not inside a tmux session. Run `tmux` first, then use `pulse --attach`.\n\
-             Or just run `pulse` directly for the full TUI."
+             Or just run `pulse --focus` directly for the compact TUI."
         );
     }
 
@@ -142,8 +164,8 @@ fn attach_tmux_pane(session_filter: Option<&str>) -> anyhow::Result<()> {
         .to_string();
 
     let pane_cmd = match session_filter {
-        Some(filter) => format!("{pulse_bin} --provider {filter}"),
-        None => pulse_bin,
+        Some(filter) => format!("{pulse_bin} --focus --provider {filter}"),
+        None => format!("{pulse_bin} --focus"),
     };
 
     let status = ProcessCommand::new("tmux")
@@ -153,6 +175,51 @@ fn attach_tmux_pane(session_filter: Option<&str>) -> anyhow::Result<()> {
     if !status.success() {
         anyhow::bail!("Failed to create tmux pane");
     }
+
+    Ok(())
+}
+
+fn run_focus_tui(scanner: Scanner) -> anyhow::Result<()> {
+    enable_raw_mode()?;
+    io::stdout().execute(EnterAlternateScreen)?;
+
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Terminal::new(backend)?;
+
+    let (tx, rx) = mpsc::channel();
+    let watcher = Watcher::start(scanner.watched_dirs(), tx)?;
+
+    let mut app = App::new(scanner, rx);
+    app.focus_mode = true;
+
+    loop {
+        terminal.draw(|f| ui::focus::draw(f, &app))?;
+
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => break,
+                    KeyCode::Char('r') => app.refresh(),
+                    KeyCode::Char('f') => app.cycle_provider_filter(),
+                    KeyCode::Char('s') => app.toggle_auto_scroll(),
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        app.focus_auto_scroll = false;
+                        app.scroll_feed_up();
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        app.scroll_feed_down();
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        app.poll_events();
+    }
+
+    drop(watcher);
+    disable_raw_mode()?;
+    io::stdout().execute(LeaveAlternateScreen)?;
 
     Ok(())
 }

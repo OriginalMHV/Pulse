@@ -7,6 +7,7 @@ struct ModelPricing {
     cache_write_per_m: f64,
 }
 
+// Claude models
 const CLAUDE_SONNET: ModelPricing = ModelPricing {
     input_per_m: 3.0,
     output_per_m: 15.0,
@@ -21,24 +22,138 @@ const CLAUDE_OPUS: ModelPricing = ModelPricing {
     cache_write_per_m: 18.75,
 };
 
+const CLAUDE_HAIKU: ModelPricing = ModelPricing {
+    input_per_m: 0.80,
+    output_per_m: 4.0,
+    cache_read_per_m: 0.08,
+    cache_write_per_m: 1.0,
+};
+
+// OpenAI GPT models
 const GPT_4_1: ModelPricing = ModelPricing {
     input_per_m: 2.0,
     output_per_m: 8.0,
+    cache_read_per_m: 0.50,
+    cache_write_per_m: 0.0,
+};
+
+const GPT_4_1_MINI: ModelPricing = ModelPricing {
+    input_per_m: 0.40,
+    output_per_m: 1.60,
+    cache_read_per_m: 0.10,
+    cache_write_per_m: 0.0,
+};
+
+const GPT_4_1_NANO: ModelPricing = ModelPricing {
+    input_per_m: 0.10,
+    output_per_m: 0.40,
+    cache_read_per_m: 0.025,
+    cache_write_per_m: 0.0,
+};
+
+const GPT_5: ModelPricing = ModelPricing {
+    input_per_m: 10.0,
+    output_per_m: 30.0,
+    cache_read_per_m: 2.50,
+    cache_write_per_m: 0.0,
+};
+
+const GPT_5_MINI: ModelPricing = ModelPricing {
+    input_per_m: 1.50,
+    output_per_m: 6.0,
+    cache_read_per_m: 0.375,
+    cache_write_per_m: 0.0,
+};
+
+// OpenAI o-series reasoning models
+const O3: ModelPricing = ModelPricing {
+    input_per_m: 2.0,
+    output_per_m: 8.0,
+    cache_read_per_m: 0.50,
+    cache_write_per_m: 0.0,
+};
+
+const O3_PRO: ModelPricing = ModelPricing {
+    input_per_m: 20.0,
+    output_per_m: 80.0,
     cache_read_per_m: 0.0,
+    cache_write_per_m: 0.0,
+};
+
+const O4_MINI: ModelPricing = ModelPricing {
+    input_per_m: 1.10,
+    output_per_m: 4.40,
+    cache_read_per_m: 0.275,
+    cache_write_per_m: 0.0,
+};
+
+// Google Gemini models
+const GEMINI_2_5_PRO: ModelPricing = ModelPricing {
+    input_per_m: 1.25,
+    output_per_m: 10.0,
+    cache_read_per_m: 0.315,
+    cache_write_per_m: 0.0,
+};
+
+const GEMINI_2_5_FLASH: ModelPricing = ModelPricing {
+    input_per_m: 0.15,
+    output_per_m: 0.60,
+    cache_read_per_m: 0.0375,
     cache_write_per_m: 0.0,
 };
 
 fn pricing_for_model(model: &str) -> &'static ModelPricing {
     let lower = model.to_lowercase();
+
+    // Claude models
     if lower.contains("opus") {
-        &CLAUDE_OPUS
-    } else if lower.contains("sonnet") || lower.contains("claude") {
-        &CLAUDE_SONNET
-    } else if lower.contains("gpt") {
-        &GPT_4_1
-    } else {
-        &CLAUDE_SONNET
+        return &CLAUDE_OPUS;
     }
+    if lower.contains("haiku") {
+        return &CLAUDE_HAIKU;
+    }
+    if lower.contains("sonnet") || lower.contains("claude") {
+        return &CLAUDE_SONNET;
+    }
+
+    // OpenAI o-series (check before gpt to avoid false matches)
+    if lower.contains("o3-pro") {
+        return &O3_PRO;
+    }
+    if lower.contains("o3") {
+        return &O3;
+    }
+    if lower.contains("o4-mini") {
+        return &O4_MINI;
+    }
+
+    // OpenAI GPT models
+    if lower.contains("gpt-5-mini") || lower.contains("gpt5-mini") {
+        return &GPT_5_MINI;
+    }
+    if lower.contains("gpt-5") || lower.contains("gpt5") {
+        return &GPT_5;
+    }
+    if lower.contains("gpt-4.1-nano") || lower.contains("4.1-nano") {
+        return &GPT_4_1_NANO;
+    }
+    if lower.contains("gpt-4.1-mini") || lower.contains("4.1-mini") {
+        return &GPT_4_1_MINI;
+    }
+    if lower.contains("gpt") {
+        return &GPT_4_1;
+    }
+
+    // Google Gemini models
+    if lower.contains("gemini") && lower.contains("flash") {
+        return &GEMINI_2_5_FLASH;
+    }
+    if lower.contains("gemini") {
+        return &GEMINI_2_5_PRO;
+    }
+
+    // Default fallback
+    &CLAUDE_SONNET
 }
 
 pub fn estimate_cost(model: &str, tokens: &TokenUsage) -> f64 {

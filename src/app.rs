@@ -66,6 +66,8 @@ pub struct App {
     pub provider_filter: ProviderFilter,
     pub view_mode: ViewMode,
     pub search_query: String,
+    pub focus_mode: bool,
+    pub focus_auto_scroll: bool,
     filtered_indices: Vec<usize>,
 }
 
@@ -81,6 +83,8 @@ impl App {
             provider_filter: ProviderFilter::All,
             view_mode: ViewMode::Normal,
             search_query: String::new(),
+            focus_mode: false,
+            focus_auto_scroll: true,
             filtered_indices: Vec::new(),
         };
         app.apply_filter();
@@ -205,6 +209,17 @@ impl App {
         self.filtered_indices
             .get(self.selected)
             .and_then(|&i| self.scanner.sessions().get(i))
+    }
+
+    /// In focus mode, auto-select the most relevant session (active first, then most recent).
+    pub fn focus_session(&self) -> Option<&Session> {
+        let sessions = self.sessions();
+        // Sessions are already sorted active-first, then by last_activity desc
+        sessions.into_iter().next()
+    }
+
+    pub fn toggle_auto_scroll(&mut self) {
+        self.focus_auto_scroll = !self.focus_auto_scroll;
     }
 
     pub fn apply_filter(&mut self) {

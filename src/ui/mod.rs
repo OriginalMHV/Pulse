@@ -1,4 +1,5 @@
 mod feed;
+pub mod focus;
 mod sessions;
 mod stats;
 
