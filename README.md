@@ -78,6 +78,12 @@ pulse --stats
 
 # filter by provider
 pulse --provider claude
+
+# attach as a tmux side pane (run this inside tmux)
+pulse --attach
+
+# attach filtered to a specific provider
+pulse --attach copilot
 ```
 
 ### Keybindings

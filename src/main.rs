@@ -1,4 +1,5 @@
 use std::io;
+use std::process::Command as ProcessCommand;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -37,10 +38,23 @@ struct Cli {
     /// Filter by provider name (copilot, claude, codex)
     #[arg(long)]
     provider: Option<String>,
+
+    /// Attach as a tmux side pane alongside your current terminal
+    #[arg(long, num_args = 0..=1, default_missing_value = "")]
+    attach: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+
+    if let Some(ref session_filter) = cli.attach {
+        let filter = if session_filter.is_empty() {
+            None
+        } else {
+            Some(session_filter.as_str())
+        };
+        return attach_tmux_pane(filter);
+    }
 
     let providers: Vec<Box<dyn SessionProvider>> = vec![
         Box::new(CopilotProvider),
@@ -112,6 +126,35 @@ fn print_stats(scanner: &Scanner) {
     );
     println!("Tools:    {} total calls", total_tools);
     println!("Cost:     {}", pulse::metrics::format_cost(total_cost));
+}
+
+fn attach_tmux_pane(session_filter: Option<&str>) -> anyhow::Result<()> {
+    if std::env::var("TMUX").is_err() {
+        anyhow::bail!(
+            "Not inside a tmux session. Run `tmux` first, then use `pulse --attach`.\n\
+             Or just run `pulse` directly for the full TUI."
+        );
+    }
+
+    let pulse_bin = std::env::current_exe()
+        .unwrap_or_else(|_| "pulse".into())
+        .display()
+        .to_string();
+
+    let pane_cmd = match session_filter {
+        Some(filter) => format!("{pulse_bin} --provider {filter}"),
+        None => pulse_bin,
+    };
+
+    let status = ProcessCommand::new("tmux")
+        .args(["split-window", "-h", "-l", "35%", &pane_cmd])
+        .status()?;
+
+    if !status.success() {
+        anyhow::bail!("Failed to create tmux pane");
+    }
+
+    Ok(())
 }
 
 fn run_tui(scanner: Scanner) -> anyhow::Result<()> {
