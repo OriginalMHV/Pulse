@@ -232,6 +232,8 @@ fn attach_tmux_pane(session_filter: Option<&str>) -> anyhow::Result<()> {
 }
 
 fn launch_menubar_background() -> anyhow::Result<()> {
+    kill_existing_daemons();
+
     let exe = std::env::current_exe()?;
 
     let child = ProcessCommand::new(&exe)
@@ -242,12 +244,30 @@ fn launch_menubar_background() -> anyhow::Result<()> {
         .spawn()?;
 
     println!("Pulse menu bar started (pid {})", child.id());
-    println!("It will appear in your macOS menu bar.");
     println!();
     println!("To auto-start on login:  pulse --install");
     println!("To stop:                 pulse --uninstall");
 
     Ok(())
+}
+
+/// Kill any running pulse menubar daemons so we don't end up with duplicates.
+fn kill_existing_daemons() {
+    // Find PIDs of existing menubar-daemon processes (excluding our own PID)
+    let own_pid = std::process::id();
+    if let Ok(output) = ProcessCommand::new("pgrep")
+        .args(["-f", "pulse.*--menubar-daemon"])
+        .output()
+    {
+        let pids = String::from_utf8_lossy(&output.stdout);
+        for line in pids.lines() {
+            if let Ok(pid) = line.trim().parse::<u32>() {
+                if pid != own_pid {
+                    let _ = ProcessCommand::new("kill").arg(pid.to_string()).status();
+                }
+            }
+        }
+    }
 }
 
 fn install_launch_agent() -> anyhow::Result<()> {

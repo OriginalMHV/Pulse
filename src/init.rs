@@ -125,22 +125,27 @@ pub fn run() -> anyhow::Result<()> {
 
     // Apply: start menubar and/or install LaunchAgent
     if wants_menubar && is_macos {
-        // Start menu bar now
+        // Kill any existing daemon first
+        kill_existing_daemons();
+
         let exe = std::env::current_exe()?;
-        let child = std::process::Command::new(&exe)
-            .arg("--menubar-daemon")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()?;
-        println!(
-            "  \x1b[32m✓\x1b[0m Menu bar started (pid {})",
-            child.id()
-        );
 
         if auto_start {
+            // Install LaunchAgent — launchctl will start the daemon
             install_launch_agent_quiet(&exe)?;
-            println!("  \x1b[32m✓\x1b[0m LaunchAgent installed — will auto-start on login");
+            println!("  \x1b[32m✓\x1b[0m LaunchAgent installed and started");
+        } else {
+            // No auto-start — just spawn the daemon directly
+            let child = std::process::Command::new(&exe)
+                .arg("--menubar-daemon")
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()?;
+            println!(
+                "  \x1b[32m✓\x1b[0m Menu bar started (pid {})",
+                child.id()
+            );
         }
     }
 
@@ -276,4 +281,23 @@ fn install_launch_agent_quiet(exe: &std::path::Path) -> anyhow::Result<()> {
         .status();
 
     Ok(())
+}
+
+fn kill_existing_daemons() {
+    let own_pid = std::process::id();
+    if let Ok(output) = std::process::Command::new("pgrep")
+        .args(["-f", "pulse.*--menubar-daemon"])
+        .output()
+    {
+        let pids = String::from_utf8_lossy(&output.stdout);
+        for line in pids.lines() {
+            if let Ok(pid) = line.trim().parse::<u32>() {
+                if pid != own_pid {
+                    let _ = std::process::Command::new("kill")
+                        .arg(pid.to_string())
+                        .status();
+                }
+            }
+        }
+    }
 }
